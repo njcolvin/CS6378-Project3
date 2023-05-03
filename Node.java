@@ -1,3 +1,4 @@
+import java.net.ConnectException;
 import java.net.ServerSocket;
 import java.net.Socket;
 
@@ -42,16 +43,33 @@ public class Node {
         System.out.printf("node %d starting clients\n", id);
         int i = 0;
         for (int ip_suffix = startIp; ip_suffix < startIp + numNodes; ip_suffix++) {
-            try {
-                System.out.println("connecting to " + ip + String.valueOf(ip_suffix));
-                Socket s = new Socket(ip + String.valueOf(ip_suffix), 5056);
-                int server_id = ip_suffix - (startIp - 1);
-                clientThreads[i] = new NodeClientThread(s, id, server_id);
-                clientThreads[i].start();
-                i++;
-            }
-            catch (Exception e) {
-                e.printStackTrace();
+            // try to connect to a server once per second
+            while (true) {
+                try {
+                    System.out.println("connecting to " + ip + String.valueOf(ip_suffix));
+                    Socket s = new Socket(ip + String.valueOf(ip_suffix), 5056);
+                    int server_id = ip_suffix - (startIp - 1);
+                    clientThreads[i] = new NodeClientThread(s, id, server_id);
+                    clientThreads[i].start();
+                    i++;
+                    break;
+                }
+                catch (ConnectException connectException) {
+
+                }
+                catch (Exception e) {
+                    e.printStackTrace();
+                }
+                finally {
+
+                }
+
+                try {
+                    Thread.sleep(1000);
+                }
+                catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         }
 
