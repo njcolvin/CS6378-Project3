@@ -51,6 +51,35 @@ public class Node {
         }
     }
 
+    private void startServer(int serverId) {
+        System.out.printf("node %d starting server %d", id, serverId);
+        try {
+            ServerSocket serverSocket = new ServerSocket(5056);
+            serverSocket.setSoTimeout(0);
+            serverThreads[serverId] = new NodeServerThread(serverSocket, serverId, votingRound, record);
+            serverThreads[serverId].start();
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void stopServer(int serverId) {
+        System.out.printf("node %d stopping server %d", id, serverId);
+        try {
+            if(!serverThreads[serverId].server.isClosed()) {
+                serverThreads[serverId].server.close();
+                // which clients should we close here?
+                int serverIndex = serverId;
+                if (serverIndex >= id)
+                    serverIndex--;
+            }
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     private void startServers() {
     
         System.out.printf("node %d starting servers\n", id);
@@ -169,7 +198,7 @@ public class Node {
 
                 try {
                     // TODO: file should be in a directory only for that node
-                    Files.write(Paths.get("f"), ("\n" + fr.toString()).getBytes(), StandardOpenOption.APPEND);
+                    Files.write(Paths.get("./d"+this.id+"/f"), ("\n" + fr.toString()).getBytes(), StandardOpenOption.APPEND);
                 }
                 catch (Exception e) {
                     e.printStackTrace();
