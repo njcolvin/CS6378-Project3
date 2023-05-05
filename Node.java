@@ -30,17 +30,9 @@ public class Node {
         record.set(new FileRecord(1, 8, 1));
         this.votingRound = new AtomicInteger(-1);
         this.votes = new FileRecord[numNodes - 1];
-        startServers();
-        startClients();
         run();
 
     }
-
-    // TODO: partition network helpers
-    //  private void startServer(int id);
-    //  private void stopServer(int id);
-    //  private void startClient(int id);
-    //  private void stopClient(int id);
 
     private void sleep(long millis) {
         try {
@@ -51,84 +43,40 @@ public class Node {
         }
     }
 
-    private void startServer(int serverId) {
-        System.out.printf("node %d starting server %d", id, serverId);
+    private void startServer(int serverIndex, int serverId, ServerSocket serverSocket, int startRound) {
+        System.out.printf("node %d starting server %d\n", id, serverId);
         try {
-            ServerSocket serverSocket = new ServerSocket(5056);
-            serverSocket.setSoTimeout(0);
-            serverThreads[serverId] = new NodeServerThread(serverSocket, serverId, votingRound, record);
-            serverThreads[serverId].start();
+            serverThreads[serverIndex] = new NodeServerThread(serverSocket, serverId, votingRound, startRound, record);
+            serverThreads[serverIndex].start();
         }
         catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private void stopServer(int serverId) {
-        System.out.printf("node %d stopping server %d", id, serverId);
-        try {
-            if(!serverThreads[serverId].server.isClosed()) {
-                serverThreads[serverId].server.close();
-                // which clients should we close here?
-                int serverIndex = serverId;
-                if (serverIndex >= id)
-                    serverIndex--;
+
+    private void startClient(int serverIndex, int serverId) {
+        int retry = 0;
+
+        // try to connect to a server once per second
+        while (retry < 120) {
+            if (!connectClientToServer(serverIndex, serverId)) {
+                sleep(1000);
+                retry++;
             }
-        }
-        catch (Exception e) {
-            e.printStackTrace();
+            else {
+                break;
+            }
         }
     }
 
-    private void startServers() {
-    
-        System.out.printf("node %d starting servers\n", id);
-        
+    private boolean connectClientToServer(int serverIndex, int serverId) {
+        int serverIpSuffix = startIp + serverId - 1;
+
+        System.out.printf("connecting client %d to %s\n", serverId, ip + String.valueOf(serverIpSuffix));
         try {
-            ServerSocket serverSocket = new ServerSocket(5056);
-            serverSocket.setSoTimeout(0);
-            for (int i = 0; i < serverThreads.length; i++) {
-                serverThreads[i] = new NodeServerThread(serverSocket, id, votingRound, record);
-                serverThreads[i].start();
-            }
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void startClients() {
-
-        System.out.printf("node %d starting clients\n", id);
-        int i = 0;
-        for (int ip_suffix = startIp; ip_suffix < startIp + numNodes; ip_suffix++) {
-            if (i == id - 1){
-                i++;
-                continue;
-            }
-            // try to connect to a server once per second
-            while (true) {
-                if (!connectToClient(i)) {
-                    sleep(1000);
-                }
-                else {
-                    i++;
-                    break;
-                }
-            }
-        }
-
-    }
-
-    private boolean connectToClient(int serverId) {
-        int serverIndex = serverId;
-        if (serverIndex >= id)
-            serverIndex--;
-
-        try {
-            System.out.println("connecting to " + ip + String.valueOf(startIp + serverId));
-            Socket s = new Socket(ip + String.valueOf(startIp + serverId), 5056);
-            clientThreads[serverIndex] = new NodeClientThread(s, id, serverId + 1, votes);
+            Socket s = new Socket(ip + String.valueOf(serverIpSuffix), 5056);
+            clientThreads[serverIndex] = new NodeClientThread(s, id, serverId, serverIndex, votes);
             clientThreads[serverIndex].start();
             return true;
         }
@@ -142,28 +90,73 @@ public class Node {
         return false;
     }
 
+    /**
+     * create/destroy connections and return the node's current partition
+     * @return this node's current partition
+     */
+    private int[] partition(int partitionIndex, ServerSocket serverSocket, int startRound) {
+        int[] currentPartition = null;
+        boolean found = false;
+        for (int[] a : partitions[partitionIndex]) {
+            for (int i : a) {
+                if (id == i) {
+                    currentPartition = a;
+                    found = true;
+                }
+            }
+            if (found) {
+                for (int i : a) {
+                    if (id == i)
+                        continue;
+
+                    int nodeIndex = i - 1;
+                    if (i >= id)
+                        nodeIndex--;
+
+                    startServer(nodeIndex, i, serverSocket, startRound);
+                }
+                for (int i : a) {
+                    if (id == i)
+                        continue;
+
+                    int nodeIndex = i - 1;
+                    if (i >= id)
+                        nodeIndex--;
+
+                    startClient(nodeIndex, i);
+                }
+                found = false;
+            } else {
+                System.out.printf("stopping servers and clients\n");
+            }
+        }
+
+        return currentPartition;
+    }
+
     private void run() {
         
         int partitionIndex = 0;
         int attempt = 0;
+        ServerSocket serverSocket = null;
+        try {
+            serverSocket = new ServerSocket(5056);
+            serverSocket.setSoTimeout(0);
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        int[] currentPartition = new int[1];
         while (record.get().VN < 9) {
 
             sleep(1000);
-
-            int[] currentPartition = new int[1];
-            for (int[] a : partitions[partitionIndex]) {
-                for (int i : a) {
-                    if (id == i) {
-                        currentPartition = a;
-                        break;
-                    }
-                }
-            }
-
-            // TODO: partition network
-
             int vr = votingRound.get();
             vr++;
+
+            if (vr % 2 == 0)
+                currentPartition = partition(partitionIndex, serverSocket, vr);
+            
             votingRound.set(vr);
 
             int pass;
@@ -197,8 +190,7 @@ public class Node {
                 record.set(new FileRecord(fr.VN, fr.RU, fr.DS));
 
                 try {
-                    // TODO: file should be in a directory only for that node
-                    Files.write(Paths.get("./d"+this.id+"/f"), ("\n" + fr.toString()).getBytes(), StandardOpenOption.APPEND);
+                    Files.write(Paths.get("./c/d"+this.id+"/f"), ("\n" + fr.toString()).getBytes(), StandardOpenOption.APPEND);
                 }
                 catch (Exception e) {
                     e.printStackTrace();
