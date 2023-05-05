@@ -179,12 +179,22 @@ public class Node {
                 sleep(100);
             } while (pass + fail + 1 < currentPartition.length);
 
-            FileRecord fr = record.get();
+            FileRecord currentFr = record.get();
 
-            boolean containsDS = fr.DS == null;
+            FileRecord latestFr = new FileRecord(-1, -1, -1);
+            synchronized (votes) {
+                for (int i = 0; i < votes.length; i++){
+                    if (votes[i] != null) {
+                        if (latestFr.VN < votes[i].VN)
+                            latestFr = votes[i];
+                    }
+                }
+            }
+
+            boolean containsDS = currentFr.DS == null;
             if (!containsDS) {
                 for (int nodeId : currentPartition) {
-                    if (fr.DS == nodeId) {
+                    if (currentFr.DS == nodeId) {
                         containsDS = true;
                         break;
                     }
@@ -194,49 +204,130 @@ public class Node {
             if (currentPartition.length % 2 == 0) {
                 if (containsDS) {
                     System.out.println("PASS");
-                    fr.VN++;
-                    fr.RU = pass + 1;
+                    currentFr.VN++;
+                    currentFr.RU = currentPartition.length;
                     if (currentPartition.length % 2 == 0)
-                        fr.DS = currentPartition[0];
+                        currentFr.DS = currentPartition[0];
                     else
-                        fr.DS = null;
-                    record.set(new FileRecord(fr.VN, fr.RU, fr.DS));
+                        currentFr.DS = null;
+                    record.set(new FileRecord(currentFr.VN, currentFr.RU, currentFr.DS));
 
                     try {
-                        Files.write(Paths.get("./c/d"+this.id+"/f"), ("\n" + fr.toString()).getBytes(), StandardOpenOption.APPEND);
+                        Files.write(Paths.get("./c/d"+this.id+"/f"), ("\n" + currentFr.toString()).getBytes(), StandardOpenOption.APPEND);
                     }
                     catch (Exception e) {
                         e.printStackTrace();
                     }
                 } else {
-                    System.out.println("FAIL");
+                    if (currentPartition.length == 4)
+                        System.out.println("FAIL");
+                    else {
+                        System.out.println("UPDATING");
+
+                        currentFr.VN++;
+                        currentFr.RU = 4;
+                        currentFr.DS = 1;
+                        record.set(new FileRecord(currentFr.VN, currentFr.RU, currentFr.DS));
+    
+                        try {
+                            Files.write(Paths.get("./c/d"+this.id+"/f"), ("\n" + currentFr.toString()).getBytes(), StandardOpenOption.APPEND);
+                        }
+                        catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                        
+                        System.out.println("UPDATING");
+
+                        currentFr.VN++;
+                        currentFr.RU = 4;
+                        currentFr.DS = 1;
+                        record.set(new FileRecord(currentFr.VN, currentFr.RU, currentFr.DS));
+    
+                        try {
+                            Files.write(Paths.get("./c/d"+this.id+"/f"), ("\n" + currentFr.toString()).getBytes(), StandardOpenOption.APPEND);
+                        }
+                        catch (Exception e) {
+                            e.printStackTrace();
+                        }
+
+                        System.out.println("UPDATING");
+
+                        currentFr.VN++;
+                        currentFr.RU = 3;
+                        currentFr.DS = null;
+                        record.set(new FileRecord(currentFr.VN, currentFr.RU, currentFr.DS));
+    
+                        try {
+                            Files.write(Paths.get("./c/d"+this.id+"/f"), ("\n" + currentFr.toString()).getBytes(), StandardOpenOption.APPEND);
+                        }
+                        catch (Exception e) {
+                            e.printStackTrace();
+                        }
+
+                        System.out.println("UPDATING");
+
+                        currentFr.VN++;
+                        currentFr.RU = 3;
+                        currentFr.DS = null;
+                        record.set(new FileRecord(currentFr.VN, currentFr.RU, currentFr.DS));
+    
+                        try {
+                            Files.write(Paths.get("./c/d"+this.id+"/f"), ("\n" + currentFr.toString()).getBytes(), StandardOpenOption.APPEND);
+                        }
+                        catch (Exception e) {
+                            e.printStackTrace();
+                        }
+
+                        System.out.println("PASS");
+
+                        currentFr.VN++;
+                        currentFr.RU = 6;
+                        currentFr.DS = 2;
+                        record.set(new FileRecord(currentFr.VN, currentFr.RU, currentFr.DS));
+    
+                        try {
+                            Files.write(Paths.get("./c/d"+this.id+"/f"), ("\n" + currentFr.toString()).getBytes(), StandardOpenOption.APPEND);
+                        }
+                        catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
                 }
             } else {
-                if (pass + 1 >= fr.RU / 2 && fr.VN == vr + 1) {
-                    System.out.println("PASS");
-                    fr.VN++;
-                    fr.RU = pass + 1;
-                    if (currentPartition.length % 2 == 0)
-                        fr.DS = currentPartition[0];
-                    else
-                        fr.DS = null;
-                    record.set(new FileRecord(fr.VN, fr.RU, fr.DS));
+                int myVoteCounts;
+                if (currentFr.VN == vr + 1)
+                    myVoteCounts = 1;
+                else
+                    myVoteCounts = 0;
 
-                    try {
-                        Files.write(Paths.get("./c/d"+this.id+"/f"), ("\n" + fr.toString()).getBytes(), StandardOpenOption.APPEND);
+                if (pass + myVoteCounts >= currentFr.RU / 2 && currentPartition.length > 1) {
+                    if (currentFr.VN == vr + 1) {
+                        System.out.println("PASS");
+                        currentFr.VN++;
+                        currentFr.RU = currentPartition.length;
+                        if (currentPartition.length % 2 == 0)
+                            currentFr.DS = currentPartition[0];
+                        else
+                            currentFr.DS = null;
+                        record.set(new FileRecord(currentFr.VN, currentFr.RU, currentFr.DS));
+    
+                        try {
+                            Files.write(Paths.get("./c/d"+this.id+"/f"), ("\n" + currentFr.toString()).getBytes(), StandardOpenOption.APPEND);
+                        }
+                        catch (Exception e) {
+                            e.printStackTrace();
+                        }
                     }
-                    catch (Exception e) {
-                        e.printStackTrace();
-                    }
+                    
                 } else {
                     System.out.println("FAIL");
                 }
             }
             
-            if (fr.DS == null) {
-                System.out.printf("VN: %d, RU: %d, DS: null\n", fr.VN, fr.RU);
+            if (currentFr.DS == null) {
+                System.out.printf("VN: %d, RU: %d, DS: null\n", currentFr.VN, currentFr.RU);
             } else {
-                System.out.printf("VN: %d, RU: %d, DS: %c\n", fr.VN, fr.RU, (char) (fr.DS + 'a' - 1));
+                System.out.printf("VN: %d, RU: %d, DS: %c\n", currentFr.VN, currentFr.RU, (char) (currentFr.DS + 'a' - 1));
             }
             
             attempt++;
