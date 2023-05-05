@@ -148,7 +148,7 @@ public class Node {
         }
 
         int[] currentPartition = new int[1];
-        while (record.get().VN < 9) {
+        while (partitionIndex < partitions.length) {
 
             sleep(1000);
             int vr = votingRound.get();
@@ -180,25 +180,64 @@ public class Node {
             } while (pass + fail + 1 < currentPartition.length);
 
             FileRecord fr = record.get();
-            if (pass + 1 == currentPartition.length && fr.VN == vr + 1) {
-                fr.VN++;
-                fr.RU = pass + 1;
-                if (currentPartition.length % 2 == 0)
-                    fr.DS = currentPartition[0];
-                else
-                    fr.DS = null;
-                record.set(new FileRecord(fr.VN, fr.RU, fr.DS));
 
-                try {
-                    Files.write(Paths.get("./c/d"+this.id+"/f"), ("\n" + fr.toString()).getBytes(), StandardOpenOption.APPEND);
+            boolean containsDS = fr.DS == null;
+            if (!containsDS) {
+                for (int nodeId : currentPartition) {
+                    if (fr.DS == nodeId) {
+                        containsDS = true;
+                        break;
+                    }
                 }
-                catch (Exception e) {
-                    e.printStackTrace();
-                }
-
             }
             
-            System.out.printf("VN: %d, RU: %d, DS: %c\n", fr.VN, fr.RU, (char) (fr.DS + 'a' - 1));
+            if (currentPartition.length % 2 == 0) {
+                if (containsDS) {
+                    System.out.println("PASS");
+                    fr.VN++;
+                    fr.RU = pass + 1;
+                    if (currentPartition.length % 2 == 0)
+                        fr.DS = currentPartition[0];
+                    else
+                        fr.DS = null;
+                    record.set(new FileRecord(fr.VN, fr.RU, fr.DS));
+
+                    try {
+                        Files.write(Paths.get("./c/d"+this.id+"/f"), ("\n" + fr.toString()).getBytes(), StandardOpenOption.APPEND);
+                    }
+                    catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                } else {
+                    System.out.println("FAIL");
+                }
+            } else {
+                if (pass + 1 >= fr.RU / 2 && fr.VN == vr + 1) {
+                    System.out.println("PASS");
+                    fr.VN++;
+                    fr.RU = pass + 1;
+                    if (currentPartition.length % 2 == 0)
+                        fr.DS = currentPartition[0];
+                    else
+                        fr.DS = null;
+                    record.set(new FileRecord(fr.VN, fr.RU, fr.DS));
+
+                    try {
+                        Files.write(Paths.get("./c/d"+this.id+"/f"), ("\n" + fr.toString()).getBytes(), StandardOpenOption.APPEND);
+                    }
+                    catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                } else {
+                    System.out.println("FAIL");
+                }
+            }
+            
+            if (fr.DS == null) {
+                System.out.printf("VN: %d, RU: %d, DS: null\n", fr.VN, fr.RU);
+            } else {
+                System.out.printf("VN: %d, RU: %d, DS: %c\n", fr.VN, fr.RU, (char) (fr.DS + 'a' - 1));
+            }
             
             attempt++;
             if (attempt % 2 == 0)

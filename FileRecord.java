@@ -12,6 +12,9 @@ public class FileRecord implements Serializable {
     }
 
     public String toString() {
+        if (this.DS == null) {
+            return this.VN + " " + this.RU + " null";
+        }
         return this.VN + " " + this.RU + " " + (char) (this.DS + 'a' - 1);
     }
 
